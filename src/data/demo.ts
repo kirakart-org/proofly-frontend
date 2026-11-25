@@ -1,6 +1,6 @@
-import type { ProofpageData } from "../types";
+import type { ProoflyData } from "../types";
 
-export const demoData: ProofpageData = {
+export const demoData: ProoflyData = {
   business: {
     name: "JS Photography Studio",
     slug: "jsphotography",

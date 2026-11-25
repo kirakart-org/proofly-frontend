@@ -13,12 +13,15 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  LogOut,
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { useProofpage } from "../../hooks/use-proofpage";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { getPublicProfileUrl } from "../../lib/public-profile";
+import { useProofly } from "../../hooks/use-proofly";
 import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 
 const navigation = [
   { path: "overview", label: "Overview", icon: LayoutDashboard },
@@ -30,18 +33,46 @@ const navigation = [
 ];
 
 export function DashboardLayout() {
-  const { data, notify } = useProofpage();
+  const { data, notify, logout } = useProofly();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [copied, setCopied] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const publicProfileUrl = getPublicProfileUrl(data.business.slug);
   const title =
     navigation.find((item) => location.pathname.endsWith(`/${item.path}`))?.label ??
     (location.pathname === "/app" ? "Overview" : "Settings");
   const copyPageLink = async () => {
+    if (!publicProfileUrl) {
+      notify("Your public page URL is not ready yet.");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/p/${data.business.slug}`);
-      notify("Your public page link has been copied.");
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard access is unavailable in this browser.");
+      }
+      await navigator.clipboard.writeText(publicProfileUrl);
+      setCopied(true);
+      notify("Copied!");
+      window.setTimeout(() => setCopied(false), 1800);
     } catch (error) {
       notify(error instanceof Error ? `Could not copy link: ${error.message}` : "Could not copy your page link.");
+    }
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    setAccountMenuOpen(false);
+    try {
+      await logout();
+      notify("You have been logged out.");
+    } catch {
+      notify("You have been logged out locally. The server could not end the session.");
+    } finally {
+      navigate("/login", { replace: true });
     }
   };
 
@@ -53,19 +84,30 @@ export function DashboardLayout() {
             <Menu size={19} />
           </Button>
           <Link to="/" className="brand-lockup workspace-brand">
-            <span className="brand-mark"><span /><span /><span /></span><span>proofpage</span>
+            <span className="brand-mark"><span /><span /><span /></span><span>proofly</span>
           </Link>
           <span className="crumb-slash">/</span>
           <span className="crumb-label">{title}</span>
         </div>
         <div className="topbar-actions">
-          <Link to={`/p/${data.business.slug}`} target="_blank" rel="noreferrer" className="preview-link">
-            <span className="status-dot" /> View live page <ArrowUpRight size={15} />
-          </Link>
+          {publicProfileUrl ? (
+            <a href={publicProfileUrl} target="_blank" rel="noreferrer" className="preview-link">
+              <span className="status-dot" /> View live page <ArrowUpRight size={15} />
+            </a>
+          ) : <span className="preview-link preview-link-loading"><Skeleton className="skeleton-dot" /> Loading page URL</span>}
           <span className="topbar-divider" />
-          <button className="user-menu" type="button" aria-label="Account menu">
-            <span className="user-avatar">JS</span><span className="user-email">{data.business.email}</span><ChevronDown size={14} />
-          </button>
+          <div className="account-dropdown">
+            <button className="user-menu" type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>
+              <span className="user-avatar">JS</span><span className="user-email">{data.business.email || "Account"}</span><ChevronDown size={14} />
+            </button>
+            {accountMenuOpen && (
+              <div className="account-menu" role="menu">
+                <button type="button" role="menuitem" disabled={isLoggingOut} onClick={() => void handleLogout()}>
+                  <LogOut size={14} /> {isLoggingOut ? "Logging out…" : "Log out"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -73,7 +115,7 @@ export function DashboardLayout() {
       <div className="workspace-body">
         <aside className={`workspace-sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
           <div className="sidebar-mobile-head">
-            <Link to="/" className="brand-lockup"><span className="brand-mark"><span /><span /><span /></span><span>proofpage</span></Link>
+            <Link to="/" className="brand-lockup"><span className="brand-mark"><span /><span /><span /></span><span>proofly</span></Link>
             <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={18} /></Button>
           </div>
           <div className="workspace-label">YOUR WORKSPACE</div>
@@ -89,17 +131,18 @@ export function DashboardLayout() {
           </nav>
           <div className="sidebar-spacer" />
           <div className="sidebar-page-card">
-            <div className="page-card-head"><span className="page-live"><span className="status-dot" /> {data.business.isPublished ? "Page is live" : "Draft mode"}</span><ShieldCheck size={14} /></div>
+            <div className="page-card-head">{publicProfileUrl ? <span className="page-live"><span className="status-dot" /> {data.business.isPublished ? "Page is live" : "Draft mode"}</span> : <Skeleton className="skeleton-page-status" />}<ShieldCheck size={14} /></div>
+            <div className="sidebar-business-name">{data.business.name || <Skeleton className="skeleton-business-name" />}</div>
             <p>Share your work with the people who need it.</p>
-            <div className="page-url">proofpage.site/p/{data.business.slug}</div>
+            <div className="page-url">{publicProfileUrl || <Skeleton className="skeleton-url" />}</div>
             <div className="page-card-actions">
-              <button type="button" onClick={copyPageLink}><Copy size={12} /> Copy link</button>
+              <button type="button" onClick={() => void copyPageLink()} disabled={!publicProfileUrl}><Copy size={12} /> {copied ? "Copied!" : "Copy link"}</button>
               <Link to="/app/business">Edit page <ArrowUpRight size={13} /></Link>
             </div>
           </div>
           <div className="sidebar-footer">
             <NavLink to="/app/settings"><Settings2 size={17} /> Settings</NavLink>
-            <a href="mailto:hello@proofpage.site"><CircleHelp size={17} /> Help & support</a>
+            <a href="mailto:hello@proofly.page"><CircleHelp size={17} /> Help & support</a>
           </div>
         </aside>
         <main className="workspace-main"><Outlet /></main>

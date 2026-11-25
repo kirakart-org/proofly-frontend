@@ -4,14 +4,14 @@ import { Slot } from "@radix-ui/react-slot";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-800/30 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]/30 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-[#214e42] text-white shadow-sm hover:bg-[#183f35]",
-        secondary: "bg-[#edf1ea] text-[#25483d] hover:bg-[#e2e9df]",
-        outline: "border border-[#d9ded6] bg-white/70 text-[#293b34] hover:bg-[#f1f3ee]",
-        ghost: "text-[#59675f] hover:bg-[#edf1ea] hover:text-[#203b32]",
+        default: "bg-[var(--app-primary)] text-white shadow-sm hover:bg-[var(--app-primary-hover)]",
+        secondary: "bg-[var(--app-primary-soft)] text-[var(--app-primary-hover)] hover:bg-[var(--app-primary-soft-hover)]",
+        outline: "border border-[var(--app-border)] bg-white text-[var(--app-text)] hover:bg-[var(--app-background)]",
+        ghost: "text-[var(--app-muted)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary-hover)]",
         destructive: "bg-rose-600 text-white hover:bg-rose-700",
       },
       size: {
@@ -36,9 +36,10 @@ export interface ButtonProps
 
 export function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
   const Component = asChild ? Slot : "button";
+  const resolvedVariant = variant ?? "default";
   return (
     <Component
-      className={cn(buttonVariants({ variant, size }), className)}
+      className={cn(buttonVariants({ variant, size }), `button-variant-${resolvedVariant}`, className)}
       {...props}
     />
   );

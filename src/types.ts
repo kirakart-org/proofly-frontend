@@ -1,4 +1,5 @@
 export type Business = {
+  id?: number;
   name: string;
   slug: string;
   tagline: string;
@@ -10,6 +11,9 @@ export type Business = {
   instagram: string;
   coverImage: string;
   isPublished: boolean;
+  logoUrl?: string;
+  socialLinks?: Record<string, string>;
+  theme?: string;
 };
 
 export type Offering = {
@@ -19,6 +23,9 @@ export type Offering = {
   description: string;
   price: string;
   image: string;
+  category?: string;
+  contactUrl?: string;
+  isVisible?: boolean;
 };
 
 export type Project = {
@@ -27,6 +34,8 @@ export type Project = {
   category: string;
   caption: string;
   image: string;
+  projectUrl?: string;
+  isVisible?: boolean;
 };
 
 export type Testimonial = {
@@ -36,6 +45,8 @@ export type Testimonial = {
   rating: number;
   review: string;
   date: string;
+  photoUrl?: string;
+  isVisible?: boolean;
 };
 
 export type LeadStatus = "New" | "Contacted" | "Booked" | "Lost";
@@ -52,7 +63,7 @@ export type Lead = {
   createdAt: string;
 };
 
-export type ProofpageData = {
+export type ProoflyData = {
   business: Business;
   offerings: Offering[];
   projects: Project[];
