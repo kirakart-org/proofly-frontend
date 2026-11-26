@@ -498,7 +498,6 @@ export function PublicProfilePage() {
     <div className="public-profile" style={getPublicThemeStyle(business.theme ?? "violet")}>
       {isPreview && <div className="preview-strip"><span>Preview mode · public profile data</span><Link to="/app/business"><ArrowLeft size={14} /> Back to editor</Link></div>}
       <header className="profile-nav">
-        <Link to="/" className="proofly-brand" aria-label="Proofly home"><span className="proofly-mark">P</span><span>Proofly</span></Link>
         <div className="profile-nav-business"><PublicBusinessLogo name={business.name} src={business.logoUrl ?? ""} /><span>{business.name}</span></div>
         <nav className={`profile-nav-links${mobileMenuOpen ? " is-open" : ""}`} aria-label="Business page">
           {page.projects.length > 0 && <a href="#work" onClick={() => setMobileMenuOpen(false)}>Work</a>}
@@ -607,7 +606,6 @@ export function PublicProfilePage() {
         <div className="profile-footer-business"><PublicBusinessLogo name={business.name} src={business.logoUrl ?? ""} /><strong>{business.name}</strong></div>
         {socialItems.length > 0 && <div className="profile-footer-socials">{socialItems.map(({ label, url }) => <a key={label} href={url} target="_blank" rel="noreferrer">{label}</a>)}</div>}
         <span>© {new Date().getFullYear()} {business.name}</span>
-        <Link to="/" className="powered-by">Powered by Proofly</Link>
       </footer>
     </div>
   );

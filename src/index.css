@@ -975,7 +975,7 @@ img { display: block; max-width: 100%; }
 }
 .public-profile .profile-nav {
   top: 12px;
-  grid-template-columns: auto auto minmax(0,1fr) auto auto;
+  grid-template-columns: auto minmax(0,1fr) auto auto;
   width: min(1050px, calc(100% - 40px));
   min-height: 56px;
   margin: 16px auto 0;
@@ -1191,8 +1191,6 @@ img { display: block; max-width: 100%; }
     padding: 6px 9px;
     gap: 7px;
   }
-  .public-profile .proofly-brand { gap: 5px; font-size: 12px; }
-  .public-profile .proofly-mark { width: 24px; height: 24px; font-size: 14px; }
   .public-profile .profile-nav-business { gap: 6px; font-size: 10px; }
   .public-profile .profile-nav-business .public-business-logo { width: 27px; height: 27px; }
   .public-profile .profile-contact-link { min-height: 34px; padding-inline: 9px; font-size: 10px; }
@@ -1218,7 +1216,8 @@ img { display: block; max-width: 100%; }
   .public-profile .public-enquiry-form { gap: 12px; padding: 19px; }
   .public-profile .public-form-grid { grid-template-columns: minmax(0,1fr); }
   .public-profile .public-enquiry-form .inline-flex { width: 100%; }
-  .public-profile .profile-footer { width: calc(100% - 36px); align-items: flex-start; flex-direction: column; gap: 12px; padding: 20px 0; }
+  .public-profile .profile-footer { width: calc(100% - 36px); align-items: center; flex-direction: column; gap: 12px; padding: 20px 0; text-align: center; }
+  .public-profile .profile-footer-socials { justify-content: center; }
 }
 
 /* Shared loading skeletons */
