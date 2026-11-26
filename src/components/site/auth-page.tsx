@@ -88,7 +88,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           throw new Error("The server did not return an access token. Please try again.");
         }
 
-        authenticate(response.access_token);
+        authenticate(response.access_token, email.trim());
         navigate("/app", { replace: true });
       }
     } catch (error) {

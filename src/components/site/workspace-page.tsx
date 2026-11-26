@@ -26,6 +26,13 @@ import { api, ApiError } from "../../api.js";
 import { useProofly } from "../../hooks/use-proofly";
 import { createId, readImageAsDataUrl } from "../../lib/utils";
 import { getPublicProfileUrl } from "../../lib/public-profile";
+import {
+  createEmptyBusiness,
+  isBusinessApiProfile,
+  toBusinessDraft,
+  unwrapBusinessApiProfile,
+  type BusinessApiProfile,
+} from "../../lib/business-profile";
 import type { Business, Offering, Project, Testimonial } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -52,22 +59,6 @@ type DashboardSummary = {
   total_testimonials: number;
   total_enquiries: number;
   total_page_views: number;
-};
-
-type BusinessApiProfile = {
-  id: number;
-  name: string;
-  username: string;
-  bio: string | null;
-  category: string | null;
-  logo_url: string | null;
-  cover_url: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  social_links: Record<string, string>;
-  theme: string;
-  is_published: boolean;
 };
 
 type PortfolioApiProject = {
@@ -364,36 +355,6 @@ function toDashboardEnquiry(enquiry: EnquiryApiRecord): DashboardEnquiry {
   };
 }
 
-function isBusinessApiProfile(value: unknown): value is BusinessApiProfile {
-  if (typeof value !== "object" || value === null) return false;
-
-  const profile = value as Record<string, unknown>;
-  const optionalStrings = [
-    profile.bio,
-    profile.category,
-    profile.logo_url,
-    profile.cover_url,
-    profile.email,
-    profile.phone,
-    profile.address,
-  ];
-
-  return (
-    typeof profile.id === "number" &&
-    Number.isSafeInteger(profile.id) &&
-    profile.id > 0 &&
-    typeof profile.name === "string" &&
-    typeof profile.username === "string" &&
-    optionalStrings.every((item) => item === null || typeof item === "string") &&
-    typeof profile.theme === "string" &&
-    typeof profile.is_published === "boolean" &&
-    typeof profile.social_links === "object" &&
-    profile.social_links !== null &&
-    !Array.isArray(profile.social_links) &&
-    Object.values(profile.social_links).every((item) => typeof item === "string")
-  );
-}
-
 function isUsernameAvailability(value: unknown): value is { available: boolean } {
   return (
     typeof value === "object" &&
@@ -401,45 +362,6 @@ function isUsernameAvailability(value: unknown): value is { available: boolean }
     "available" in value &&
     typeof value.available === "boolean"
   );
-}
-
-function toBusinessDraft(profile: BusinessApiProfile, tagline: string): Business {
-  return {
-    id: profile.id,
-    name: profile.name,
-    slug: profile.username,
-    tagline,
-    bio: profile.bio ?? "",
-    category: profile.category ?? "",
-    location: profile.address ?? "",
-    email: profile.email ?? "",
-    phone: profile.phone ?? "",
-    instagram: profile.social_links.instagram ?? "",
-    coverImage: profile.cover_url ?? "",
-    isPublished: profile.is_published,
-    logoUrl: profile.logo_url ?? "",
-    socialLinks: profile.social_links,
-    theme: profile.theme,
-  };
-}
-
-function createEmptyBusiness(): Business {
-  return {
-    name: "",
-    slug: "",
-    tagline: "",
-    bio: "",
-    category: "",
-    location: "",
-    email: "",
-    phone: "",
-    instagram: "",
-    coverImage: "",
-    isPublished: false,
-    logoUrl: "",
-    socialLinks: {},
-    theme: "violet",
-  };
 }
 
 function toBusinessPayload(draft: Business, includePublished: boolean) {
@@ -489,6 +411,19 @@ function isDashboardSummary(value: unknown): value is DashboardSummary {
 export function WorkspacePage({ section: sectionProp }: { section?: WorkspaceSection }) {
   const { section: routeSection } = useParams();
   const section = (sectionProp ?? routeSection ?? "overview") as WorkspaceSection;
+  const { businessStatus, businessError, reloadBusiness } = useProofly();
+  if (businessStatus === "loading") return <OverviewSkeleton />;
+  if (businessStatus === "error") {
+    return (
+      <div className="page-stack">
+        <PageHeading eyebrow="YOUR WORKSPACE" title="Your business" description="We couldn’t load your business details." />
+        <div className="dashboard-state" role="alert">
+          <p>{businessError}</p>
+          <Button variant="outline" onClick={reloadBusiness}>Try again</Button>
+        </div>
+      </div>
+    );
+  }
   switch (section) {
     case "business": return <BusinessEditor />;
     case "offerings": return <OfferingsPage />;
@@ -606,7 +541,7 @@ function OverviewPage() {
       dashboardStatus === "error"
           ? dashboardError
           : dashboardStatus === "empty"
-            ? "No saved business ID was found. Connect a business to load its dashboard."
+            ? "You don't have a business profile yet. Create one to set up your dashboard."
             : "Your dashboard is not available.";
 
     return (
@@ -799,18 +734,19 @@ function BusinessEditor() {
     api
       .get(`/business/${businessId}`)
       .then((response) => {
-        if (!isBusinessApiProfile(response)) {
+        const profile = unwrapBusinessApiProfile(response);
+        if (!isBusinessApiProfile(profile)) {
           throw new Error("The business profile response was incomplete or invalid.");
         }
         if (!active) return;
 
-        const profileDraft = toBusinessDraft(response, data.business.tagline);
+        const profileDraft = toBusinessDraft(profile, data.business.tagline);
         setDraft(profileDraft);
-        setCurrentUsername(response.username);
+        setCurrentUsername(profile.username);
         setIsCreating(false);
         setData((current) => ({
           ...current,
-          business: toBusinessDraft(response, current.business.tagline),
+          business: toBusinessDraft(profile, current.business.tagline),
         }));
         setProfileStatus("ready");
       })
@@ -919,7 +855,24 @@ function BusinessEditor() {
       let savedProfile: BusinessApiProfile;
 
       if (isCreating) {
-        const response = await api.post("/business", payload);
+        let existingProfile: unknown = null;
+        try {
+          existingProfile = await api.get("/business/me");
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        }
+        existingProfile = unwrapBusinessApiProfile(existingProfile);
+        if (existingProfile !== null) {
+          if (!isBusinessApiProfile(existingProfile)) {
+            throw new Error("The existing business profile response was incomplete or invalid.");
+          }
+          persistProfile(existingProfile);
+          setSuccessMessage("Your existing business profile was loaded.");
+          notify("Your existing business profile is ready.");
+          return;
+        }
+
+        const response = unwrapBusinessApiProfile(await api.post("/business", payload));
         if (!isBusinessApiProfile(response)) {
           throw new Error("The business profile response was incomplete or invalid.");
         }
@@ -927,9 +880,9 @@ function BusinessEditor() {
         savedProfile = response;
 
         if (draft.isPublished && !response.is_published) {
-          const publishedResponse = await api.put(`/business/${response.id}`, {
+          const publishedResponse = unwrapBusinessApiProfile(await api.put(`/business/${response.id}`, {
             ...toBusinessPayload(draft, true),
-          });
+          }));
           if (!isBusinessApiProfile(publishedResponse)) {
             throw new Error("The updated business profile response was incomplete or invalid.");
           }
@@ -939,7 +892,7 @@ function BusinessEditor() {
         if (typeof draft.id !== "number") {
           throw new Error("The saved business ID is missing. Reload the profile and try again.");
         }
-        const response = await api.put(`/business/${draft.id}`, toBusinessPayload(draft, true));
+        const response = unwrapBusinessApiProfile(await api.put(`/business/${draft.id}`, toBusinessPayload(draft, true)));
         if (!isBusinessApiProfile(response)) {
           throw new Error("The updated business profile response was incomplete or invalid.");
         }
@@ -1974,7 +1927,7 @@ function EnquiriesPage() {
 }
 
 function SettingsPage() {
-  const { data, setData, notify } = useProofly();
+  const { data, setData, notify, userEmail } = useProofly();
   const updateSetting = (key: keyof typeof data.settings, value: boolean) => {
     setData((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
     notify("Your preference has been saved.");
@@ -1983,9 +1936,9 @@ function SettingsPage() {
     <div className="page-stack">
       <PageHeading eyebrow="PREFERENCES" title="Settings" description="A few small choices for how your Proofly works." />
       <Card className="settings-card">
-        <CardHeader><CardTitle>Your account</CardTitle><p>These details are used when people get in touch with you.</p></CardHeader>
+        <CardHeader><CardTitle>Your account</CardTitle><p>This is the email associated with your Proofly account.</p></CardHeader>
         <CardContent>
-          <div className="setting-row"><div className="setting-avatar">JS</div><div><strong>{data.business.name}</strong><small>{data.business.email}</small></div><Badge><ShieldCheck size={12} /> Verified</Badge></div>
+          <div className="setting-row"><div className="setting-avatar">{userEmail.split("@")[0].slice(0, 2).toUpperCase() || "A"}</div><div><strong>{userEmail}</strong><small>Account email</small></div></div>
           <SettingToggle title="Enquiry email alerts" description="Get a note when a new client reaches out." checked={data.settings.emailAlerts} onChange={(value) => updateSetting("emailAlerts", value)} />
           <SettingToggle title="Search engine visibility" description="Allow search engines to index your public page." checked={data.settings.searchIndexing} onChange={(value) => updateSetting("searchIndexing", value)} />
         </CardContent>

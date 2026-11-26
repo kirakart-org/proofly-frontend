@@ -9,76 +9,121 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { demoData } from "../data/demo";
-import { api } from "../api.js";
+import { api, ApiError } from "../api.js";
+import {
+  createEmptyBusiness,
+  isBusinessApiProfile,
+  toBusinessDraft,
+  unwrapBusinessApiProfile,
+} from "../lib/business-profile";
 import type { ProoflyData } from "../types";
 
 type ProoflyContextValue = {
   data: ProoflyData;
   setData: Dispatch<SetStateAction<ProoflyData>>;
   isAuthenticated: boolean;
-  authenticate: (token: string) => void;
+  userEmail: string;
+  businessStatus: "loading" | "ready" | "empty" | "error";
+  businessError: string;
+  authenticate: (token: string, email: string) => void;
+  reloadBusiness: () => void;
   clearSession: () => void;
   logout: () => Promise<void>;
   notify: (message: string) => void;
 };
 
 const ProoflyContext = createContext<ProoflyContextValue | null>(null);
-const STORAGE_KEY = "proofly-demo-v1";
-const LEGACY_STORAGE_KEY = "proofpage-demo-v1";
 
-function createClearedData(settings: ProoflyData["settings"]): ProoflyData {
+function createEmptyData(): ProoflyData {
   return {
-    business: {
-      name: "",
-      slug: "",
-      tagline: "",
-      bio: "",
-      category: "",
-      location: "",
-      email: "",
-      phone: "",
-      instagram: "",
-      coverImage: "",
-      isPublished: false,
-      socialLinks: {},
-      theme: "violet",
-    },
+    business: createEmptyBusiness(),
     offerings: [],
     projects: [],
     testimonials: [],
     leads: [],
-    settings,
+    settings: { emailAlerts: true, searchIndexing: true },
   };
 }
 
 export function ProoflyProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<ProoflyData>(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    return saved ? (JSON.parse(saved) as ProoflyData) : demoData;
-  });
+  const [data, setData] = useState<ProoflyData>(createEmptyData);
   const [toast, setToast] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => Boolean(window.localStorage.getItem("token")),
+  const [accessToken, setAccessToken] = useState(
+    () => window.localStorage.getItem("token"),
   );
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-  }, [data]);
+  const [userEmail, setUserEmail] = useState(
+    () => window.localStorage.getItem("proofly-user-email") ?? "",
+  );
+  const [businessStatus, setBusinessStatus] = useState<ProoflyContextValue["businessStatus"]>(
+    () => window.localStorage.getItem("token") ? "loading" : "empty",
+  );
+  const [businessError, setBusinessError] = useState("");
+  const [businessReloadCount, setBusinessReloadCount] = useState(0);
 
   useEffect(() => {
     const syncAuthentication = (event: StorageEvent) => {
       if (event.key === "token") {
-        setIsAuthenticated(Boolean(event.newValue));
-        if (!event.newValue) {
-          setData((current) => createClearedData(current.settings));
-        }
+        setAccessToken(event.newValue);
+        setUserEmail(window.localStorage.getItem("proofly-user-email") ?? "");
+        setData(createEmptyData());
+        setBusinessStatus(event.newValue ? "loading" : "empty");
+        setBusinessError("");
+      } else if (event.key === "proofly-user-email") {
+        setUserEmail(event.newValue ?? "");
       }
     };
     window.addEventListener("storage", syncAuthentication);
     return () => window.removeEventListener("storage", syncAuthentication);
   }, []);
+
+  useEffect(() => {
+    if (!accessToken) {
+      setBusinessStatus("empty");
+      return;
+    }
+
+    let active = true;
+    setBusinessStatus("loading");
+    setBusinessError("");
+
+    api.get("/business/me")
+      .then((response) => {
+        if (!active) return;
+        const profile = unwrapBusinessApiProfile(response);
+        if (profile === null) {
+          setData(createEmptyData());
+          setBusinessStatus("empty");
+          return;
+        }
+        if (!isBusinessApiProfile(profile)) {
+          throw new Error("The business profile response was incomplete or invalid.");
+        }
+        setData((current) => ({
+          ...createEmptyData(),
+          settings: current.settings,
+          business: toBusinessDraft(profile),
+        }));
+        setBusinessStatus("ready");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 401) {
+          clearSession();
+          return;
+        }
+        if (error instanceof ApiError && error.status === 404) {
+          setData(createEmptyData());
+          setBusinessStatus("empty");
+          return;
+        }
+        setBusinessError(error instanceof Error ? error.message : "Unable to load your business profile.");
+        setBusinessStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, businessReloadCount]);
 
   useEffect(() => {
     if (!toast) return;
@@ -87,15 +132,26 @@ export function ProoflyProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const notify = useCallback((message: string) => setToast(message), []);
-  const authenticate = useCallback((token: string) => {
+  const authenticate = useCallback((token: string, email: string) => {
     window.localStorage.setItem("token", token);
-    setIsAuthenticated(true);
+    window.localStorage.setItem("proofly-user-email", email);
+    setAccessToken(token);
+    setUserEmail(email);
+    setData(createEmptyData());
+    setBusinessStatus("loading");
+    setBusinessError("");
+    setBusinessReloadCount((count) => count + 1);
   }, []);
+  const reloadBusiness = useCallback(() => setBusinessReloadCount((count) => count + 1), []);
   const clearSession = useCallback(() => {
     window.localStorage.removeItem("token");
+    window.localStorage.removeItem("proofly-user-email");
     window.sessionStorage.removeItem("token");
-    setIsAuthenticated(false);
-    setData((current) => createClearedData(current.settings));
+    setAccessToken(null);
+    setUserEmail("");
+    setData(createEmptyData());
+    setBusinessStatus("empty");
+    setBusinessError("");
   }, []);
   const logout = useCallback(async () => {
     try {
@@ -106,9 +162,22 @@ export function ProoflyProvider({ children }: { children: ReactNode }) {
       clearSession();
     }
   }, [clearSession]);
+  const isAuthenticated = Boolean(accessToken);
   const value = useMemo(
-    () => ({ data, setData, isAuthenticated, authenticate, clearSession, logout, notify }),
-    [data, isAuthenticated, authenticate, clearSession, logout, notify],
+    () => ({
+      data,
+      setData,
+      isAuthenticated,
+      userEmail,
+      businessStatus,
+      businessError,
+      authenticate,
+      reloadBusiness,
+      clearSession,
+      logout,
+      notify,
+    }),
+    [data, isAuthenticated, userEmail, businessStatus, businessError, authenticate, reloadBusiness, clearSession, logout, notify],
   );
 
   return (

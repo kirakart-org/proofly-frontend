@@ -11,7 +11,6 @@ import {
   PackageOpen,
   Settings2,
   ShieldCheck,
-  Sparkles,
   Star,
   LogOut,
   X,
@@ -33,7 +32,7 @@ const navigation = [
 ];
 
 export function DashboardLayout() {
-  const { data, notify, logout } = useProofly();
+  const { data, notify, logout, userEmail } = useProofly();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -41,6 +40,7 @@ export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const publicProfileUrl = getPublicProfileUrl(data.business.slug);
+  const accountInitials = userEmail.split("@")[0].slice(0, 2).toUpperCase() || "A";
   const title =
     navigation.find((item) => location.pathname.endsWith(`/${item.path}`))?.label ??
     (location.pathname === "/app" ? "Overview" : "Settings");
@@ -90,15 +90,15 @@ export function DashboardLayout() {
           <span className="crumb-label">{title}</span>
         </div>
         <div className="topbar-actions">
-          {publicProfileUrl ? (
+          {data.business.id && publicProfileUrl ? (
             <a href={publicProfileUrl} target="_blank" rel="noreferrer" className="preview-link">
               <span className="status-dot" /> View live page <ArrowUpRight size={15} />
             </a>
-          ) : <span className="preview-link preview-link-loading"><Skeleton className="skeleton-dot" /> Loading page URL</span>}
+          ) : null}
           <span className="topbar-divider" />
           <div className="account-dropdown">
             <button className="user-menu" type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>
-              <span className="user-avatar">JS</span><span className="user-email">{data.business.email || "Account"}</span><ChevronDown size={14} />
+              <span className="user-avatar">{accountInitials}</span><span className="user-email">{userEmail || "Account"}</span><ChevronDown size={14} />
             </button>
             {accountMenuOpen && (
               <div className="account-menu" role="menu">
@@ -130,7 +130,7 @@ export function DashboardLayout() {
             ))}
           </nav>
           <div className="sidebar-spacer" />
-          <div className="sidebar-page-card">
+          {data.business.id && <div className="sidebar-page-card">
             <div className="page-card-head">{publicProfileUrl ? <span className="page-live"><span className="status-dot" /> {data.business.isPublished ? "Page is live" : "Draft mode"}</span> : <Skeleton className="skeleton-page-status" />}<ShieldCheck size={14} /></div>
             <div className="sidebar-business-name">{data.business.name || <Skeleton className="skeleton-business-name" />}</div>
             <p>Share your work with the people who need it.</p>
@@ -139,7 +139,7 @@ export function DashboardLayout() {
               <button type="button" onClick={() => void copyPageLink()} disabled={!publicProfileUrl}><Copy size={12} /> {copied ? "Copied!" : "Copy link"}</button>
               <Link to="/app/business">Edit page <ArrowUpRight size={13} /></Link>
             </div>
-          </div>
+          </div>}
           <div className="sidebar-footer">
             <NavLink to="/app/settings"><Settings2 size={17} /> Settings</NavLink>
             <a href="mailto:hello@proofly.page"><CircleHelp size={17} /> Help & support</a>
@@ -147,7 +147,6 @@ export function DashboardLayout() {
         </aside>
         <main className="workspace-main"><Outlet /></main>
       </div>
-      <div className="demo-banner"><Sparkles size={13} /> Interactive demo · Your changes are saved in this browser</div>
     </div>
   );
 }
