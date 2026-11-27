@@ -6,7 +6,7 @@ import { WorkspacePage } from "./components/site/workspace-page";
 import { PublicProfilePage } from "./components/site/public-profile-page";
 import { AuthPage } from "./components/site/auth-page";
 import { getSubdomainUsername } from "./lib/public-profile";
-
+ 
 function ProtectedDashboard() {
   const { isAuthenticated } = useProofly();
   return isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" replace />;
