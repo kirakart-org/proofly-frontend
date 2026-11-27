@@ -6,10 +6,16 @@ import { WorkspacePage } from "./components/site/workspace-page";
 import { PublicProfilePage } from "./components/site/public-profile-page";
 import { AuthPage } from "./components/site/auth-page";
 import { getSubdomainUsername } from "./lib/public-profile";
- 
+
+import { ForgotPasswordPage } from "./components/site/forgot-password";
+
 function ProtectedDashboard() {
   const { isAuthenticated } = useProofly();
-  return isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" replace />;
+  return isAuthenticated ? (
+    <DashboardLayout />
+  ) : (
+    <Navigate to="/login" replace />
+  );
 }
 
 export default function App() {
@@ -25,6 +31,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage mode="login" />} />
         <Route path="/register" element={<AuthPage mode="register" />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/app" element={<ProtectedDashboard />}>
           <Route index element={<WorkspacePage section="overview" />} />
           <Route path=":section" element={<WorkspacePage />} />
