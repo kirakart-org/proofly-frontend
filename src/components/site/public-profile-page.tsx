@@ -377,10 +377,13 @@ function PublicProfileSkeleton() {
   );
 }
 
-export function PublicProfilePage() {
+export function PublicProfilePage({ username }: { username?: string } = {}) {
   const { slug = "" } = useParams();
+  const pageUsername = username ?? slug;
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get("preview") === "1";
+  const prooflyHomeUrl = username ? "https://prooflynk.app/" : "/";
+  const editorUrl = username ? "https://prooflynk.app/app/business" : "/app/business";
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -398,7 +401,7 @@ export function PublicProfilePage() {
     setSubmitted(false);
     setSubmitError("");
 
-    if (!slug) {
+    if (!pageUsername) {
       setPageStatus("notFound");
       return () => {
         active = false;
@@ -406,12 +409,12 @@ export function PublicProfilePage() {
     }
 
     api
-      .get(`/pages/${encodeURIComponent(slug)}`)
+      .get(`/pages/${encodeURIComponent(pageUsername)}`)
       .then((response) => {
         if (!isPublicPageResponse(response)) {
           throw new Error("The public page response was incomplete or invalid.");
         }
-        if (response.business.username !== slug || !response.business.is_published) {
+        if (response.business.username !== pageUsername || !response.business.is_published) {
           if (active) setPageStatus("notFound");
           return;
         }
@@ -432,7 +435,7 @@ export function PublicProfilePage() {
     return () => {
       active = false;
     };
-  }, [slug, retryCount]);
+  }, [pageUsername, retryCount]);
 
   if (pageStatus === "loading") {
     return <PublicProfileSkeleton />;
@@ -445,7 +448,7 @@ export function PublicProfilePage() {
         <h1>We couldn’t load this page.</h1>
         <p>{errorMessage}</p>
         <Button onClick={() => setRetryCount((count) => count + 1)}>Try again</Button>
-        <Button asChild variant="outline"><Link to="/"><ArrowLeft size={15} /> Back to Proofly</Link></Button>
+        <Button asChild variant="outline"><a href={prooflyHomeUrl}><ArrowLeft size={15} /> Back to Proofly</a></Button>
       </div>
     );
   }
@@ -456,7 +459,7 @@ export function PublicProfilePage() {
         <span className="brand-mark"><span /><span /><span /></span>
         <h1>This page isn’t available.</h1>
         <p>It may be unpublished, or the address might have changed.</p>
-        <Button asChild><Link to={isPreview ? "/app/business" : "/"}><ArrowLeft size={15} /> {isPreview ? "Back to the editor" : "Back to Proofly"}</Link></Button>
+        <Button asChild><a href={isPreview ? editorUrl : prooflyHomeUrl}><ArrowLeft size={15} /> {isPreview ? "Back to the editor" : "Back to Proofly"}</a></Button>
       </div>
     );
   }

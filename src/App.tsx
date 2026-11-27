@@ -5,6 +5,7 @@ import { DashboardLayout } from "./components/site/dashboard-layout";
 import { WorkspacePage } from "./components/site/workspace-page";
 import { PublicProfilePage } from "./components/site/public-profile-page";
 import { AuthPage } from "./components/site/auth-page";
+import { getSubdomainUsername } from "./lib/public-profile";
 
 function ProtectedDashboard() {
   const { isAuthenticated } = useProofly();
@@ -12,6 +13,12 @@ function ProtectedDashboard() {
 }
 
 export default function App() {
+  const subdomainUsername = getSubdomainUsername(window.location.hostname);
+
+  if (subdomainUsername) {
+    return <PublicProfilePage username={subdomainUsername} />;
+  }
+
   return (
     <ProoflyProvider>
       <Routes>
